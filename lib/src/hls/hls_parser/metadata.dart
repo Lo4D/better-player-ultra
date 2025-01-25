@@ -7,7 +7,13 @@ class Metadata {
   final List<HlsTrackMetadataEntry> list;
 
   @override
-  bool operator ==(dynamic other) {
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    if (other.runtimeType != runtimeType) {
+      return false;
+    }
     if (other is Metadata) {
       return const ListEquality<HlsTrackMetadataEntry>()
           .equals(other.list, list);
