@@ -631,7 +631,13 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     {
         // Create new controller passing reference to the AVPlayerLayer
         self._playerLayer = [AVPlayerLayer playerLayerWithPlayer:_player];
-        UIViewController* vc = [[[UIApplication sharedApplication] keyWindow] rootViewController];
+        UIViewController* vc = nil;
+        if (@available(iOS 13.0, *)) {
+            UIWindowScene *windowScene = (UIWindowScene *)[[UIApplication sharedApplication].connectedScenes anyObject];
+            vc = windowScene.windows.firstObject.rootViewController;
+        } else {
+            vc = [[[UIApplication sharedApplication] keyWindow] rootViewController];
+        }
         self._playerLayer.frame = frame;
         self._playerLayer.needsDisplayOnBoundsChange = YES;
         //  [self._playerLayer addObserver:self forKeyPath:readyForDisplayKeyPath options:NSKeyValueObservingOptionNew context:nil];
