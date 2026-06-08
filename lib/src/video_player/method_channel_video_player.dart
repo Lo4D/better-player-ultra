@@ -408,6 +408,44 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
             key: key,
           );
 
+        case 'pipWillStop':
+          return VideoEvent(
+            eventType: VideoEventType.pipWillStop,
+            key: key,
+          );
+
+        case 'pipWillStart':
+          return VideoEvent(
+            eventType: VideoEventType.pipWillStart,
+            key: key,
+          );
+
+        case 'pipRestoreUI':
+          return VideoEvent(
+            eventType: VideoEventType.pipRestoreUI,
+            key: key,
+          );
+
+        case 'pipError':
+          return VideoEvent(
+            eventType: VideoEventType.pipError,
+            key: key,
+            error: map['error'] as String?,
+          );
+
+        case 'pipStalled':
+          return VideoEvent(
+            eventType: VideoEventType.pipStalled,
+            key: key,
+          );
+
+        case 'pipAnalytics':
+          return VideoEvent(
+            eventType: VideoEventType.pipAnalytics,
+            key: key,
+            pipDuration: map['duration'] as double?,
+          );
+
         default:
           return VideoEvent(
             eventType: VideoEventType.unknown,

@@ -252,6 +252,25 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         case VideoEventType.pipStop:
           value = value.copyWith(isPip: false);
           break;
+        case VideoEventType.pipWillStop:
+          // PiP is about to stop, prepare for restoration
+          break;
+        case VideoEventType.pipWillStart:
+          // PiP is about to start
+          break;
+        case VideoEventType.pipRestoreUI:
+          // Native layer is requesting UI restoration
+          // This is handled in BetterPlayerController
+          break;
+        case VideoEventType.pipError:
+          // PiP error occurred, handled in BetterPlayerController
+          break;
+        case VideoEventType.pipStalled:
+          // PiP playback stalled, handled in BetterPlayerController
+          break;
+        case VideoEventType.pipAnalytics:
+          // PiP analytics data, handled in BetterPlayerController
+          break;
         case VideoEventType.unknown:
           break;
       }

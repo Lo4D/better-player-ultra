@@ -151,6 +151,17 @@ class BetterPlayerConfiguration {
   ///Darken overlay (0-1) placed above the blurred video to reduce glare.
   final double ambientDarken;
 
+  /// Auto-enter PiP mode when app goes to background (iOS only).
+  /// Default value is false. User must explicitly enable this.
+  final bool autoEnterPipOnBackground;
+
+  /// Show error messages for PiP failures as notifications.
+  /// Default value is true.
+  final bool showPipErrors;
+
+  /// Callback for PiP analytics events. Receives duration in seconds.
+  final Function(double duration)? onPipAnalytics;
+
   const BetterPlayerConfiguration({
     this.aspectRatio,
     this.autoPlay = false,
@@ -199,6 +210,9 @@ class BetterPlayerConfiguration {
     this.ambientBlurSigma = 60,
     this.ambientScale = 1.25,
     this.ambientDarken = 0.55,
+    this.autoEnterPipOnBackground = false,
+    this.showPipErrors = true,
+    this.onPipAnalytics,
   });
 
   BetterPlayerConfiguration copyWith({
@@ -242,6 +256,9 @@ class BetterPlayerConfiguration {
     double? ambientBlurSigma,
     double? ambientScale,
     double? ambientDarken,
+    bool? autoEnterPipOnBackground,
+    bool? showPipErrors,
+    Function(double duration)? onPipAnalytics,
   }) {
     return BetterPlayerConfiguration(
       aspectRatio: aspectRatio ?? this.aspectRatio,
@@ -296,6 +313,10 @@ class BetterPlayerConfiguration {
       ambientBlurSigma: ambientBlurSigma ?? this.ambientBlurSigma,
       ambientScale: ambientScale ?? this.ambientScale,
       ambientDarken: ambientDarken ?? this.ambientDarken,
+      autoEnterPipOnBackground:
+          autoEnterPipOnBackground ?? this.autoEnterPipOnBackground,
+      showPipErrors: showPipErrors ?? this.showPipErrors,
+      onPipAnalytics: onPipAnalytics ?? this.onPipAnalytics,
     );
   }
 }

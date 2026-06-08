@@ -379,6 +379,8 @@ class VideoEvent {
     this.size,
     this.buffered,
     this.position,
+    this.error,
+    this.pipDuration,
   });
 
   /// The type of the event.
@@ -406,6 +408,16 @@ class VideoEvent {
 
   ///Seek position
   final Duration? position;
+
+  /// Error message for PiP errors
+  ///
+  /// Only used if [eventType] is [VideoEventType.pipError].
+  final String? error;
+
+  /// PiP session duration in seconds
+  ///
+  /// Only used if [eventType] is [VideoEventType.pipAnalytics].
+  final double? pipDuration;
 
   @override
   bool operator ==(Object other) {
@@ -461,6 +473,24 @@ enum VideoEventType {
 
   /// Picture in picture mode has been dismissed
   pipStop,
+
+  /// Picture in picture will stop (prepare for restoration)
+  pipWillStop,
+
+  /// Picture in picture will start
+  pipWillStart,
+
+  /// Picture in picture restore UI requested
+  pipRestoreUI,
+
+  /// Picture in picture error occurred
+  pipError,
+
+  /// Picture in picture playback stalled
+  pipStalled,
+
+  /// Picture in picture analytics data
+  pipAnalytics,
 
   /// An unknown event has been received.
   unknown,

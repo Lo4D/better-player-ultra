@@ -26,6 +26,9 @@ AVPictureInPictureController *_pipController;
     _isInitialized = false;
     _isPlaying = false;
     _disposed = false;
+    _wasPlayingBeforePiP = false;
+    _userDidManuallyPauseInPiP = false;
+    _playerRateBeforePiP = 1.0;
     _player = [[AVPlayer alloc] init];
     _player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
     ///Fix for loading large videos
@@ -33,6 +36,17 @@ AVPictureInPictureController *_pipController;
         _player.automaticallyWaitsToMinimizeStalling = false;
     }
     self._observersAdded = false;
+
+    // Register for app lifecycle notifications
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(applicationDidEnterBackground:)
+                                                 name:UIApplicationDidEnterBackgroundNotification
+                                               object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(applicationWillEnterForeground:)
+                                                 name:UIApplicationWillEnterForegroundNotification
+                                               object:nil];
+
     return self;
 }
 
@@ -321,22 +335,22 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     if ([path isEqualToString:@"rate"]) {
         if (@available(iOS 10.0, *)) {
             if (_pipController.pictureInPictureActive == true){
-                if (_lastAvPlayerTimeControlStatus != [NSNull null] && _lastAvPlayerTimeControlStatus == _player.timeControlStatus){
-                    return;
-                }
-
-                if (_player.timeControlStatus == AVPlayerTimeControlStatusPaused){
-                    _lastAvPlayerTimeControlStatus = _player.timeControlStatus;
-                    if (_eventSink != nil) {
-                      _eventSink(@{@"event" : @"pause"});
+                // Track manual pause/play actions in PiP
+                if (_lastAvPlayerTimeControlStatus != [NSNull null] && _lastAvPlayerTimeControlStatus != _player.timeControlStatus){
+                    if (_player.timeControlStatus == AVPlayerTimeControlStatusPaused){
+                        _lastAvPlayerTimeControlStatus = _player.timeControlStatus;
+                        self.userDidManuallyPauseInPiP = YES;
+                        if (_eventSink != nil) {
+                          _eventSink(@{@"event" : @"pause"});
+                        }
+                        return;
                     }
-                    return;
-
-                }
-                if (_player.timeControlStatus == AVPlayerTimeControlStatusPlaying){
-                    _lastAvPlayerTimeControlStatus = _player.timeControlStatus;
-                    if (_eventSink != nil) {
-                      _eventSink(@{@"event" : @"play"});
+                    if (_player.timeControlStatus == AVPlayerTimeControlStatusPlaying){
+                        _lastAvPlayerTimeControlStatus = _player.timeControlStatus;
+                        self.userDidManuallyPauseInPiP = NO;
+                        if (_eventSink != nil) {
+                          _eventSink(@{@"event" : @"play"});
+                        }
                     }
                 }
             }
@@ -610,7 +624,16 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 
 - (void)setupPipController {
     if (@available(iOS 9.0, *)) {
-        [[AVAudioSession sharedInstance] setActive: YES error: nil];
+        NSError *error = nil;
+        // Configure audio session for background playback
+        [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:&error];
+        if (error) {
+            NSLog(@"Failed to set audio session category: %@", error.localizedDescription);
+        }
+        [[AVAudioSession sharedInstance] setActive: YES error: &error];
+        if (error) {
+            NSLog(@"Failed to activate audio session: %@", error.localizedDescription);
+        }
         [[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
         if (!_pipController && self._playerLayer && [AVPictureInPictureController isPictureInPictureSupported]) {
             _pipController = [[AVPictureInPictureController alloc] initWithPlayerLayer:self._playerLayer];
@@ -651,7 +674,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 
 - (void)disablePictureInPicture
 {
-    [self setPictureInPicture:true];
+    [self setPictureInPicture:false];
     if (__playerLayer){
         [self._playerLayer removeFromSuperlayer];
         self._playerLayer = nil;
@@ -664,7 +687,28 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 
 #if TARGET_OS_IOS
 - (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController  API_AVAILABLE(ios(9.0)){
+    // Calculate PiP duration for analytics
+    if (self.pipStartTime != nil) {
+        NSTimeInterval pipDuration = [[NSDate date] timeIntervalSinceDate:self.pipStartTime];
+        if (_eventSink != nil) {
+            _eventSink(@{
+                @"event": @"pipAnalytics",
+                @"duration": @(pipDuration)
+            });
+        }
+        self.pipStartTime = nil;
+    }
+
+    // Clean up PiP resources
     [self disablePictureInPicture];
+
+    // Ensure playback state is restored if it was playing before
+    if (self.wasPlayingBeforePiP && _isPlaying) {
+        [self updatePlayingState];
+    }
+
+    // Reset PiP tracking flags
+    self.userDidManuallyPauseInPiP = NO;
 }
 
 - (void)pictureInPictureControllerDidStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController  API_AVAILABLE(ios(9.0)){
@@ -674,19 +718,62 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 }
 
 - (void)pictureInPictureControllerWillStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController  API_AVAILABLE(ios(9.0)){
-
+    // Prepare for restoration - notify Flutter layer that PiP is about to stop
+    if (_eventSink != nil) {
+        _eventSink(@{@"event" : @"pipWillStop"});
+    }
 }
 
 - (void)pictureInPictureControllerWillStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
+    // Save playback state before entering PiP
+    self.wasPlayingBeforePiP = _isPlaying;
+    self.playerRateBeforePiP = _playerRate;
+    self.userDidManuallyPauseInPiP = NO;
+    self.pipStartTime = [NSDate date];
 
+    if (_eventSink != nil) {
+        _eventSink(@{@"event" : @"pipWillStart"});
+    }
 }
 
 - (void)pictureInPictureController:(AVPictureInPictureController *)pictureInPictureController failedToStartPictureInPictureWithError:(NSError *)error {
+    NSLog(@"PiP failed to start: %@", error.localizedDescription);
 
+    if (_eventSink != nil) {
+        _eventSink(@{
+            @"event": @"pipError",
+            @"error": error.localizedDescription ?: @"Unknown error"
+        });
+    }
 }
 
 - (void)pictureInPictureController:(AVPictureInPictureController *)pictureInPictureController restoreUserInterfaceForPictureInPictureStopWithCompletionHandler:(void (^)(BOOL))completionHandler {
-    [self setRestoreUserInterfaceForPIPStopCompletionHandler: true];
+    // Store completion handler for later
+    _restoreUserInterfaceForPIPStopCompletionHandler = completionHandler;
+
+    // Notify Flutter layer to restore UI
+    if (_eventSink != nil) {
+        _eventSink(@{@"event" : @"pipRestoreUI"});
+    }
+
+    // Smart resume: only resume if was playing before AND user didn't manually pause
+    if (self.wasPlayingBeforePiP && !self.userDidManuallyPauseInPiP && !_isPlaying) {
+        _isPlaying = true;
+        // Restore playback speed
+        if (self.playerRateBeforePiP != _playerRate && self.playerRateBeforePiP > 0) {
+            _playerRate = self.playerRateBeforePiP;
+        }
+        [self updatePlayingState];
+    }
+
+    // Call completion handler after a short delay to allow Flutter UI to restore
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        if (_restoreUserInterfaceForPIPStopCompletionHandler != NULL) {
+            _restoreUserInterfaceForPIPStopCompletionHandler(YES);
+            _restoreUserInterfaceForPIPStopCompletionHandler = NULL;
+        }
+    });
 }
 
 - (void) setAudioTrack:(NSString*) name index:(int) index{
@@ -753,6 +840,15 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
             _pipController = nil;
         }
     }
+
+    // Remove app lifecycle observers
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:UIApplicationDidEnterBackgroundNotification
+                                                  object:nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:UIApplicationWillEnterForegroundNotification
+                                                  object:nil];
+
     _disposed = true;
 }
 
@@ -763,8 +859,49 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
         if (self._observersAdded) {
             [self removeObservers];
         }
+        // Remove app lifecycle observers
+        [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                        name:UIApplicationDidEnterBackgroundNotification
+                                                      object:nil];
+        [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                        name:UIApplicationWillEnterForegroundNotification
+                                                      object:nil];
     } @catch (NSException *exception) {
         NSLog(@"BetterPlayer dealloc removeObservers failed: %@", exception.debugDescription);
+    }
+}
+
+#pragma mark - App Lifecycle Handlers
+
+- (void)applicationDidEnterBackground:(NSNotification *)notification {
+    if (@available(iOS 9.0, *)) {
+        // When app goes to background with PiP active, ensure video continues playing
+        if (_pipController && [_pipController isPictureInPictureActive]) {
+            // PiP is active, video should continue playing in background
+            if (_isPlaying && _player.rate == 0) {
+                // Player was paused by system, resume it
+                if (@available(iOS 10.0, *)) {
+                    [_player playImmediatelyAtRate:_playerRate];
+                } else {
+                    [_player play];
+                    _player.rate = _playerRate;
+                }
+            }
+
+            // Monitor for stalled playback
+            if (_player.currentItem && !_player.currentItem.playbackLikelyToKeepUp) {
+                if (_eventSink != nil) {
+                    _eventSink(@{@"event" : @"pipStalled"});
+                }
+            }
+        }
+    }
+}
+
+- (void)applicationWillEnterForeground:(NSNotification *)notification {
+    // App returning to foreground, ensure player state is correct
+    if (_isPlaying && _player.rate == 0) {
+        [self updatePlayingState];
     }
 }
 

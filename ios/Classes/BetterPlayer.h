@@ -35,6 +35,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic) float playerRate;
 @property(nonatomic) int overriddenDuration;
 @property(nonatomic) AVPlayerTimeControlStatus lastAvPlayerTimeControlStatus;
+@property(nonatomic) bool wasPlayingBeforePiP;
+@property(nonatomic) float playerRateBeforePiP;
+@property(nonatomic) bool userDidManuallyPauseInPiP;
+@property(nonatomic) NSDate* pipStartTime;
 - (void)play;
 - (void)pause;
 - (void)setIsLooping:(bool)isLooping;

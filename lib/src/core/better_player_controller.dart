@@ -1240,6 +1240,54 @@ class BetterPlayerController {
       case VideoEventType.bufferingEnd:
         _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingEnd));
         break;
+      case VideoEventType.pipWillStart:
+        _postEvent(BetterPlayerEvent(BetterPlayerEventType.pipWillStart));
+        break;
+      case VideoEventType.pipWillStop:
+        _postEvent(BetterPlayerEvent(BetterPlayerEventType.pipWillStop));
+        break;
+      case VideoEventType.pipRestoreUI:
+        // Handle UI restoration from PiP
+        _postEvent(BetterPlayerEvent(BetterPlayerEventType.pipRestoreUI));
+        // Ensure controls are restored
+        if (_wasControlsEnabledBeforePiP) {
+          setControlsEnabled(true);
+        }
+        // Trigger UI refresh
+        videoPlayerController?.refresh();
+        break;
+      case VideoEventType.pipError:
+        // Handle PiP error
+        _postEvent(BetterPlayerEvent(
+          BetterPlayerEventType.pipError,
+          parameters: <String, dynamic>{
+            'error': event.error ?? 'Unknown PiP error',
+          },
+        ));
+        if (betterPlayerConfiguration.showPipErrors) {
+          BetterPlayerUtils.log("PiP error: ${event.error}");
+        }
+        break;
+      case VideoEventType.pipStalled:
+        // Handle PiP stalled playback
+        _postEvent(BetterPlayerEvent(BetterPlayerEventType.pipStalled));
+        BetterPlayerUtils.log("PiP playback stalled");
+        break;
+      case VideoEventType.pipAnalytics:
+        // Handle PiP analytics
+        final double duration = event.pipDuration ?? 0.0;
+        _postEvent(BetterPlayerEvent(
+          BetterPlayerEventType.pipAnalytics,
+          parameters: <String, dynamic>{
+            'duration': duration,
+          },
+        ));
+        // Call user callback if provided
+        if (betterPlayerConfiguration.onPipAnalytics != null) {
+          betterPlayerConfiguration.onPipAnalytics!(duration);
+        }
+        BetterPlayerUtils.log("PiP session duration: ${duration}s");
+        break;
       default:
         BetterPlayerUtils.log("Unhandled event type: ${event.eventType}");
         break;
